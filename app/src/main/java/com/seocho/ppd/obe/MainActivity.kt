@@ -67,6 +67,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import android.content.res.Configuration
+import androidx.compose.foundation.border
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -84,6 +85,7 @@ import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.seocho.ppd.obe.ui.main.DriveUiState
 import com.seocho.ppd.obe.ui.main.MainViewModel
 import com.seocho.ppd.obe.ui.main.RouteUiState
 import com.seocho.ppd.obe.ui.main.VehUiState
@@ -116,6 +118,7 @@ fun MainScreen(
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val routeState by viewModel.routeState.collectAsState()
     val vehState by viewModel.vehState.collectAsState()
+    val driveState by viewModel.driveState.collectAsState()
 
     // 최초 진입 시 데이터 로드 (노선 + 차량정보)
     LaunchedEffect(Unit) {
@@ -213,6 +216,9 @@ fun MainScreen(
         var isOperating by rememberSaveable { mutableStateOf(false) }
         // 토스트: Pair(노선명, 시작여부) - null이면 숨김
         var operationToast by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
+        // 노선 선택 상태 (Box 스코프에서도 접근 필요)
+        var selectedRoute by rememberSaveable { mutableStateOf<String?>(null) }
+        var selectedRouteEid by rememberSaveable { mutableStateOf<Long?>(null) }
 
         Box(
             modifier = Modifier
@@ -240,12 +246,61 @@ fun MainScreen(
                     modifier = Modifier.height(if (isLandscape) 44.dp else 72.dp),
                     contentScale = ContentScale.FillHeight,
                 )
-                Text(
-                    text = "서초구 운전자앱",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface,
-                )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
+                    // 실시간 날짜·시간
+                    var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
+                    LaunchedEffect(Unit) {
+                        while (true) {
+                            currentTime = System.currentTimeMillis()
+                            kotlinx.coroutines.delay(1000)
+                        }
+                    }
+                    val dateFormat = remember {
+                        java.text.SimpleDateFormat("yyyy.MM.dd (E)", java.util.Locale.KOREAN)
+                    }
+                    val timeFormat = remember {
+                        java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.KOREAN)
+                    }
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        ) {
+                            Text(
+                                text = dateFormat.format(java.util.Date(currentTime)),
+                                fontSize = 20.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Text(
+                                text = "|",
+                                fontSize = 20.sp,
+                                color = MaterialTheme.colorScheme.outlineVariant,
+                            )
+                            Text(
+                                text = timeFormat.format(java.util.Date(currentTime)),
+                                fontSize = 24.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+
+                    Text(
+                        text = "서초구 운전자앱",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface,
+                    )
+                }
             }
 
             // 상단/하단 영역 구분선
@@ -261,7 +316,7 @@ fun MainScreen(
             ) {
                 // 좌측: 기기 ID
                 Text(
-                    text = "기기 ID: $androidId",
+                    text = "안드로이드 ID: $androidId",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -294,30 +349,62 @@ fun MainScreen(
             }
 
             // 노선 선택
-            var selectedRoute by rememberSaveable { mutableStateOf<String?>(null) }
             var showRouteDialog by remember { mutableStateOf(false) }
 
             // API에서 가져온 노선 목록
-            val routeNames = when (val state = routeState) {
-                is RouteUiState.Success -> state.routes.map { it.routeName }
+            val routes = when (val state = routeState) {
+                is RouteUiState.Success -> state.routes
                 else -> emptyList()
             }
+
+            var showRouteChangeWarning by remember { mutableStateOf(false) }
 
             RouteSelectButton(
                 selectedRoute = selectedRoute,
                 enabled = routeState is RouteUiState.Success,
-                onClick = { showRouteDialog = true },
+                onClick = {
+                    if (isOperating) {
+                        showRouteChangeWarning = true
+                    } else {
+                        showRouteDialog = true
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 20.dp, vertical = 8.dp),
             )
 
-            if (showRouteDialog && routeNames.isNotEmpty()) {
+            if (showRouteChangeWarning) {
+                AlertDialog(
+                    onDismissRequest = { showRouteChangeWarning = false },
+                    title = {
+                        Text(
+                            text = "노선 변경 불가",
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFD32F2F),
+                        )
+                    },
+                    text = {
+                        Text(
+                            text = "운행 중에는 노선을 변경할 수 없습니다.\n운행을 종료한 후 변경해주세요.",
+                            fontSize = 16.sp,
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = { showRouteChangeWarning = false }) {
+                            Text("확인")
+                        }
+                    },
+                )
+            }
+
+            if (showRouteDialog && routes.isNotEmpty()) {
                 RouteSelectDialog(
-                    routeList = routeNames,
+                    routeList = routes.map { it.routeName },
                     selectedRoute = selectedRoute,
-                    onSelect = { route ->
-                        selectedRoute = route
+                    onSelect = { routeName ->
+                        selectedRoute = routeName
+                        selectedRouteEid = routes.first { it.routeName == routeName }.entityId
                         showRouteDialog = false
                     },
                     onDismiss = { showRouteDialog = false },
@@ -431,10 +518,11 @@ fun MainScreen(
                             showRouteWarning = true
                             return@OperationButton
                         }
-                        val wasOperating = isOperating
-                        isOperating = !isOperating
-                        operationToast = Pair(selectedRoute!!, !wasOperating)
-                        // TODO: 서버 API 호출 (운행시작/종료 알림)
+                        viewModel.sendDriveAction(
+                            androidId = androidId,
+                            routeEid = selectedRouteEid!!,
+                            driveAction = !isOperating,
+                        )
                     },
                 )
             }
@@ -511,8 +599,44 @@ fun MainScreen(
             }
         }
 
+        // 운행 API 성공 시 상태 전환 + 토스트
+        LaunchedEffect(driveState) {
+            if (driveState is DriveUiState.Success) {
+                val isStart = (driveState as DriveUiState.Success).isStart
+                isOperating = isStart
+                operationToast = Pair(selectedRoute ?: "", isStart)
+                viewModel.resetDriveState()
+            }
+        }
+
+        // 운행 API 에러 다이얼로그
+        if (driveState is DriveUiState.Error) {
+            AlertDialog(
+                onDismissRequest = { viewModel.resetDriveState() },
+                title = {
+                    Text(
+                        text = "운행 처리 실패",
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFFD32F2F),
+                    )
+                },
+                text = {
+                    Text(
+                        text = (driveState as DriveUiState.Error).message,
+                        fontSize = 16.sp,
+                    )
+                },
+                confirmButton = {
+                    TextButton(onClick = { viewModel.resetDriveState() }) {
+                        Text("확인")
+                    }
+                },
+            )
+        }
+
         // 로딩 오버레이 (API 요청 중 화면 차단)
         val isLoading = routeState is RouteUiState.Loading || vehState is VehUiState.Loading
+                || driveState is DriveUiState.Loading
         if (isLoading) {
             Box(
                 modifier = Modifier
@@ -531,7 +655,7 @@ fun MainScreen(
                         color = Color.White,
                     )
                     Text(
-                        text = "정보를 불러오는 중...",
+                        text = if (driveState is DriveUiState.Loading) "운행 처리 중..." else "정보를 불러오는 중...",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Medium,
                         color = Color.White,

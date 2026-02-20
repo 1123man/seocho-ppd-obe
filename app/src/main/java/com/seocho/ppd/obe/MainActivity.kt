@@ -16,9 +16,14 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -61,12 +66,17 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import android.content.res.Configuration
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -102,6 +112,8 @@ fun MainScreen(
     viewModel: MainViewModel = hiltViewModel(),
 ) {
     val context = LocalContext.current
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val routeState by viewModel.routeState.collectAsState()
     val vehState by viewModel.vehState.collectAsState()
 
@@ -199,6 +211,8 @@ fun MainScreen(
         modifier = Modifier.fillMaxSize(),
     ) { innerPadding ->
         var isOperating by rememberSaveable { mutableStateOf(false) }
+        // 토스트: Pair(노선명, 시작여부) - null이면 숨김
+        var operationToast by remember { mutableStateOf<Pair<String, Boolean>?>(null) }
 
         Box(
             modifier = Modifier
@@ -213,14 +227,17 @@ fun MainScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(MaterialTheme.colorScheme.surface)
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                    .padding(
+                        horizontal = 20.dp,
+                        vertical = if (isLandscape) 8.dp else 16.dp,
+                    ),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Image(
                     painter = painterResource(id = R.drawable.seocho_top_logo),
                     contentDescription = "서초구 로고",
-                    modifier = Modifier.height(72.dp),
+                    modifier = Modifier.height(if (isLandscape) 44.dp else 72.dp),
                     contentScale = ContentScale.FillHeight,
                 )
                 Text(
@@ -276,18 +293,6 @@ fun MainScreen(
                 }
             }
 
-            // 차량 정보 인사 메시지
-            if (vehState is VehUiState.Success) {
-                val vehId = (vehState as VehUiState.Success).vehInfo.vehId
-                Text(
-                    text = "반갑습니다 $vehId 차량 기사님",
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
-                )
-            }
-
             // 노선 선택
             var selectedRoute by rememberSaveable { mutableStateOf<String?>(null) }
             var showRouteDialog by remember { mutableStateOf(false) }
@@ -302,7 +307,9 @@ fun MainScreen(
                 selectedRoute = selectedRoute,
                 enabled = routeState is RouteUiState.Success,
                 onClick = { showRouteDialog = true },
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
             )
 
             if (showRouteDialog && routeNames.isNotEmpty()) {
@@ -351,6 +358,64 @@ fun MainScreen(
                 )
             }
 
+            // 차량 정보 인사 메시지
+            if (vehState is VehUiState.Success) {
+                val vehId = (vehState as VehUiState.Success).vehInfo.vehId
+                if (isLandscape) {
+                    // 가로: 한 줄로 콤팩트하게
+                    Text(
+                        text = buildAnnotatedString {
+                            append("반갑습니다. ")
+                            withStyle(SpanStyle(color = Color(0xFFE65100), fontWeight = FontWeight.ExtraBold)) {
+                                append(vehId)
+                            }
+                            append(" 기사님, \uD83D\uDE8C 안전운전 하세요!")
+                        },
+                        fontSize = 22.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp, vertical = 8.dp),
+                        textAlign = TextAlign.Center,
+                    )
+                } else {
+                    // 세로: 3줄 강조
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 16.dp),
+                    ) {
+                        Text(
+                            text = "반갑습니다.",
+                            fontSize = 28.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = buildAnnotatedString {
+                                withStyle(SpanStyle(color = Color(0xFFE65100))) {
+                                    append(vehId)
+                                }
+                                append(" 기사님")
+                            },
+                            fontSize = 36.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "\uD83D\uDE8C 안전운전 하세요!",
+                            fontSize = 26.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color(0xFF2E7D32),
+                        )
+                    }
+                }
+            }
+
             // 메인 영역: 운행시작/종료 버튼
             Box(
                 modifier = Modifier
@@ -360,15 +425,89 @@ fun MainScreen(
                 OperationButton(
                     isOperating = isOperating,
                     selectedRoute = selectedRoute,
+                    isLandscape = isLandscape,
                     onClick = {
                         if (selectedRoute == null) {
                             showRouteWarning = true
                             return@OperationButton
                         }
+                        val wasOperating = isOperating
                         isOperating = !isOperating
+                        operationToast = Pair(selectedRoute!!, !wasOperating)
                         // TODO: 서버 API 호출 (운행시작/종료 알림)
                     },
                 )
+            }
+        }
+
+        // 운행 시작/종료 토스트 메시지 (5초 fade)
+        LaunchedEffect(operationToast) {
+            if (operationToast != null) {
+                kotlinx.coroutines.delay(5000)
+                operationToast = null
+            }
+        }
+        AnimatedVisibility(
+            visible = operationToast != null,
+            enter = fadeIn(tween(400)) + scaleIn(
+                initialScale = 0.9f,
+                animationSpec = tween(400),
+            ),
+            exit = fadeOut(tween(600)) + scaleOut(
+                targetScale = 0.95f,
+                animationSpec = tween(600),
+            ),
+            modifier = Modifier
+                .fillMaxWidth()
+                .align(Alignment.TopCenter)
+                .padding(top = if (isLandscape) 80.dp else 200.dp),
+        ) {
+            val toastData = operationToast
+            val isStart = toastData?.second ?: true
+            val gradientColors = if (isStart) {
+                listOf(Color(0xFF1B5E20), Color(0xFF2E7D32), Color(0xFF388E3C))
+            } else {
+                listOf(Color(0xFFB71C1C), Color(0xFFC62828), Color(0xFFD32F2F))
+            }
+            Box(
+                modifier = Modifier.fillMaxWidth(),
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(
+                    modifier = Modifier
+                        .shadow(16.dp, RoundedCornerShape(20.dp))
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(
+                            brush = Brush.horizontalGradient(colors = gradientColors),
+                        )
+                        .padding(horizontal = 56.dp, vertical = 36.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                    ) {
+                        Text(
+                            text = "${if (isStart) "\uD83D\uDE8C" else "\uD83D\uDED1"} ${toastData?.first ?: ""}",
+                            fontSize = if (isLandscape) 32.sp else 40.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color.White,
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = if (isStart) "운행을 시작합니다" else "운행을 종료합니다",
+                            fontSize = if (isLandscape) 26.sp else 34.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isStart) Color(0xFFA5D6A7) else Color(0xFFEF9A9A),
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (isStart) "안전운전 하세요!" else "수고하셨습니다!",
+                            fontSize = if (isLandscape) 22.sp else 28.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = if (isStart) Color(0xFFE8F5E9) else Color(0xFFFFCDD2),
+                        )
+                    }
+                }
             }
         }
 
@@ -439,7 +578,7 @@ fun MainScreen(
                 },
                 text = {
                     Text(
-                        text = "현재 기기가 관제 시스템에 등록되지 않았습니다.\n관리자에게 문의하세요.",
+                        text = "현재 기기가 관제 시스템에 등록되지 않았습니다.\n관리자에게 문의하세요.\n\n현재 차량번호와 '$androidId' 정보를 관리자에게 알려주세요.",
                         fontSize = 16.sp,
                     )
                 },
@@ -542,40 +681,45 @@ private fun RouteSelectButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (enabled) MaterialTheme.colorScheme.surfaceVariant
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-            )
-            .then(
-                if (enabled) Modifier.clickable(onClick = onClick) else Modifier,
-            )
-            .padding(horizontal = 16.dp, vertical = 14.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    Box(
+        modifier = modifier,
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = "노선",
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            text = if (!enabled) "로딩 중..." else (selectedRoute ?: "선택해주세요"),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (selectedRoute != null)
-                MaterialTheme.colorScheme.primary
-            else
-                MaterialTheme.colorScheme.outline,
-        )
-        Text(
-            text = "▼",
-            fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .background(
+                    if (enabled) MaterialTheme.colorScheme.surfaceVariant
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                )
+                .then(
+                    if (enabled) Modifier.clickable(onClick = onClick) else Modifier,
+                )
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            Text(
+                text = "노선",
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = if (!enabled) "로딩 중..." else (selectedRoute ?: "선택해주세요"),
+                fontSize = 18.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (selectedRoute != null)
+                    MaterialTheme.colorScheme.primary
+                else
+                    MaterialTheme.colorScheme.outline,
+            )
+            Text(
+                text = "▼",
+                fontSize = 14.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -645,6 +789,7 @@ private fun RouteSelectDialog(
 private fun OperationButton(
     isOperating: Boolean,
     selectedRoute: String?,
+    isLandscape: Boolean = false,
     onClick: () -> Unit,
 ) {
     val interactionSource = remember { MutableInteractionSource() }
@@ -676,6 +821,16 @@ private fun OperationButton(
         label = "labelColor",
     )
 
+    val buttonSize = if (isLandscape) 260.dp else 320.dp
+    val buttonTextSize = if (isLandscape) 42.sp else 48.sp
+    val statusLabelSize = if (isLandscape) 26.sp else 32.sp
+    val guideTextSize = if (isLandscape) 18.sp else 20.sp
+    val routeLabelSize = if (isLandscape) 18.sp else 20.sp
+    val routeValueSize = if (isLandscape) 22.sp else 24.sp
+    val topSpacerHeight = if (isLandscape) 10.dp else 32.dp
+    val bottomSpacerHeight = if (isLandscape) 8.dp else 24.dp
+    val routeSpacerHeight = if (isLandscape) 6.dp else 16.dp
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -687,33 +842,33 @@ private fun OperationButton(
             ) {
                 Text(
                     text = "선택 운행노선",
-                    fontSize = 20.sp,
+                    fontSize = routeLabelSize,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
                 Text(
                     text = "[ $selectedRoute ]",
-                    fontSize = 24.sp,
+                    fontSize = routeValueSize,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(routeSpacerHeight))
         }
 
         // 상태 라벨 - 크고 굵게
         Text(
             text = if (isOperating) "운행 중" else "운행 대기",
-            fontSize = 32.sp,
+            fontSize = statusLabelSize,
             fontWeight = FontWeight.Bold,
             color = labelColor,
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(topSpacerHeight))
 
         // 원형 그라데이션 버튼
         Box(
             modifier = Modifier
-                .size(320.dp)
+                .size(buttonSize)
                 .graphicsLayer {
                     scaleX = scale
                     scaleY = scale
@@ -738,17 +893,28 @@ private fun OperationButton(
             Text(
                 text = if (isOperating) "운행종료" else "운행시작",
                 color = Color.White,
-                fontSize = 48.sp,
+                fontSize = buttonTextSize,
                 fontWeight = FontWeight.Bold,
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(bottomSpacerHeight))
 
-        // 안내 텍스트 - 크기 키우고 색상 강조
+        // 안내 텍스트 - '시작'/'종료' 강조
         Text(
-            text = if (isOperating) "버튼을 누르면 운행이 종료됩니다" else "버튼을 누르면 운행이 시작됩니다",
-            fontSize = 20.sp,
+            text = buildAnnotatedString {
+                append("버튼을 누르면 운행이 ")
+                withStyle(
+                    SpanStyle(
+                        color = if (isOperating) Color(0xFFD32F2F) else Color(0xFF1B5E20),
+                        fontWeight = FontWeight.Bold,
+                    ),
+                ) {
+                    append(if (isOperating) "종료" else "시작")
+                }
+                append("됩니다")
+            },
+            fontSize = guideTextSize,
             fontWeight = FontWeight.Medium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

@@ -8,7 +8,7 @@ Seocho PPD OBE Android 앱. Jetpack Compose 기반 그린필드 프로젝트.
 Play Store 배포 없이 **APK 파일을 태블릿 기기에 수동 설치**하여 운용한다.
 가로/세로 회전 모두 지원하는 **반응형 레이아웃** 필수.
 
-## 기술 스택
+## 기술 스택 정의
 
 - **Language**: Kotlin
 - **UI**: Jetpack Compose + Material Design 3

@@ -1,0 +1,53 @@
+name: Slack 커밋 알림
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Slack 알림 전송
+        uses: 8398a7/action-slack@v3
+        with:
+          status: custom
+          custom_payload: |
+            {
+              "text": "🚀 *새 커밋이 push 되었습니다*",
+              "attachments": [
+                {
+                  "color": "#2EB67D",
+                  "blocks": [
+                    {
+                      "type": "section",
+                      "fields": [
+                        { "type": "mrkdwn", "text": "*저장소:*\n${{ github.repository }}" },
+                        { "type": "mrkdwn", "text": "*브랜치:*\n${{ github.ref_name }}" },
+                        { "type": "mrkdwn", "text": "*작성자:*\n${{ github.actor }}" },
+                        { "type": "mrkdwn", "text": "*시간:*\n${{ github.event.head_commit.timestamp }}" }
+                      ]
+                    },
+                    {
+                      "type": "section",
+                      "text": {
+                        "type": "mrkdwn",
+                        "text": "*커밋 메시지:*\n${{ github.event.head_commit.message }}"
+                      }
+                    },
+                    {
+                      "type": "actions",
+                      "elements": [
+                        {
+                          "type": "button",
+                          "text": { "type": "plain_text", "text": "커밋 보기" },
+                          "url": "${{ github.event.head_commit.url }}"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}

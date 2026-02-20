@@ -22,7 +22,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            // 에뮬레이터에서 호스트 PC 접근: 10.0.2.2 (localhost는 에뮬레이터 자체를 가리킴)
+            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:10204/rest/api/v1/android-app/\"")
+        }
         release {
+            buildConfigField("String", "BASE_URL", "\"https://seochobus.seocho.go.kr/rest/api/v1/android-app/\"")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -43,6 +48,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 }
 
@@ -66,6 +72,12 @@ dependencies {
     // Navigation (type-safe route에 kotlinx-serialization 사용)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.serialization.json)
+
+    // 네트워크 (Retrofit + OkHttp)
+    implementation(libs.retrofit)
+    implementation(libs.retrofit.converter.kotlinx.serialization)
+    implementation(libs.okhttp)
+    implementation(libs.okhttp.logging.interceptor)
 
     // Hilt DI
     implementation(libs.hilt.android)

@@ -86,6 +86,8 @@ dependencies {
 
     // 단위 테스트
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.turbine)
 
     // 통합/UI 테스트
     androidTestImplementation(libs.androidx.test.ext.junit)

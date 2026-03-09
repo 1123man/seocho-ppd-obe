@@ -55,6 +55,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -664,28 +665,12 @@ fun MainScreen(
             }
         }
 
-        // 에러 다이얼로그 (노선 정보 로드 실패)
+        // 에러 다이얼로그 (노선 정보 로드 실패) - 15초 자동 다시시도
         if (routeState is RouteUiState.Error) {
-            AlertDialog(
-                onDismissRequest = {},
-                title = {
-                    Text(
-                        text = "노선 정보 로드 실패",
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD32F2F),
-                    )
-                },
-                text = {
-                    Text(
-                        text = (routeState as RouteUiState.Error).message,
-                        fontSize = 16.sp,
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = { viewModel.loadInitialData(androidId) }) {
-                        Text("다시 시도")
-                    }
-                },
+            AutoRetryErrorDialog(
+                title = "노선 정보 로드 실패",
+                message = (routeState as RouteUiState.Error).message,
+                onRetry = { viewModel.loadInitialData(androidId) },
             )
         }
 
@@ -702,7 +687,7 @@ fun MainScreen(
                 },
                 text = {
                     Text(
-                        text = "현재 기기가 관제 시스템에 등록되지 않았습니다.\n관리자에게 문의하세요.\n\n현재 차량번호와 '$androidId' 정보를 관리자에게 알려주세요.",
+                        text = "현재 기기가 관제 시스템에 등록되지 않았습니다.\n관리자에게 문의하세요.\n\n현재 차량번호와 안드로이드 ID '$androidId' 정보를 관리자에게 알려주세요.",
                         fontSize = 16.sp,
                     )
                 },
@@ -714,32 +699,76 @@ fun MainScreen(
             )
         }
 
-        // 에러 다이얼로그 (차량 정보 로드 실패)
+        // 에러 다이얼로그 (차량 정보 로드 실패) - 15초 자동 다시시도
         if (vehState is VehUiState.Error) {
-            AlertDialog(
-                onDismissRequest = {},
-                title = {
-                    Text(
-                        text = "차량 정보 로드 실패",
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFD32F2F),
-                    )
-                },
-                text = {
-                    Text(
-                        text = (vehState as VehUiState.Error).message,
-                        fontSize = 16.sp,
-                    )
-                },
-                confirmButton = {
-                    TextButton(onClick = { viewModel.loadVehInfo(androidId) }) {
-                        Text("다시 시도")
-                    }
-                },
+            AutoRetryErrorDialog(
+                title = "차량 정보 로드 실패",
+                message = (vehState as VehUiState.Error).message,
+                onRetry = { viewModel.loadVehInfo(androidId) },
             )
         }
         } // Box
     }
+}
+
+/**
+ * 자동 다시시도 카운트다운이 포함된 에러 다이얼로그.
+ * 15초마다 자동으로 [onRetry]를 호출하며, '다시 시도' 버튼 클릭 시 카운트다운을 리셋한다.
+ */
+@Composable
+private fun AutoRetryErrorDialog(
+    title: String,
+    message: String,
+    retryIntervalSeconds: Int = 15,
+    onRetry: () -> Unit,
+) {
+    var countdown by remember { mutableIntStateOf(retryIntervalSeconds) }
+    // retryTrigger를 변경하면 LaunchedEffect가 재시작되어 카운트다운이 리셋됨
+    var retryTrigger by remember { mutableIntStateOf(0) }
+
+    LaunchedEffect(retryTrigger) {
+        countdown = retryIntervalSeconds
+        while (countdown > 0) {
+            kotlinx.coroutines.delay(1000)
+            countdown--
+        }
+        onRetry()
+        // 빠른 실패 시 다이얼로그가 재생성되지 않을 수 있으므로 카운트다운 재시작
+        retryTrigger++
+    }
+
+    AlertDialog(
+        onDismissRequest = {},
+        title = {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                color = Color(0xFFD32F2F),
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = message,
+                    fontSize = 16.sp,
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "자동 다시시도 (${countdown}초)",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = {
+                retryTrigger++
+                onRetry()
+            }) {
+                Text("다시 시도")
+            }
+        },
+    )
 }
 
 /** 인터넷/위치 상태 인디케이터 */

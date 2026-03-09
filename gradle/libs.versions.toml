@@ -26,6 +26,8 @@ okhttp = "4.12.0"
 
 # 테스트
 junit = "4.13.2"
+coroutinesTest = "1.9.0"
+turbine = "1.2.0"
 androidxTestExtJunit = "1.2.1"
 espressoCore = "3.6.1"
 
@@ -66,6 +68,8 @@ okhttp-logging-interceptor = { group = "com.squareup.okhttp3", name = "logging-i
 
 # 테스트
 junit = { group = "junit", name = "junit", version.ref = "junit" }
+kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
+turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
 androidx-test-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 

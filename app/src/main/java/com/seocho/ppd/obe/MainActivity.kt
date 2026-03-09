@@ -600,6 +600,17 @@ fun MainScreen(
             }
         }
 
+        // 차량에 이미 할당된 노선이 있으면 자동 선택
+        LaunchedEffect(vehState) {
+            if (vehState is VehUiState.Success) {
+                val route = (vehState as VehUiState.Success).vehInfo.route
+                if (route != null && route.routeName != null && route.entityId != null) {
+                    selectedRoute = route.routeName
+                    selectedRouteEid = route.entityId
+                }
+            }
+        }
+
         // 운행 API 성공 시 상태 전환 + 토스트
         LaunchedEffect(driveState) {
             if (driveState is DriveUiState.Success) {

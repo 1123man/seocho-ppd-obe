@@ -13,6 +13,7 @@ data class VehInfo(
     val vehName: String,
     val androidId: String? = null,
     val route: VehRoute? = null,
+    val androidVehDriving: String? = null,
 )
 
 /**

@@ -26,6 +26,11 @@ android {
             // 에뮬레이터에서 호스트 PC 접근: 10.0.2.2 (localhost는 에뮬레이터 자체를 가리킴)
             buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:10204/rest/api/v1/android-app/\"")
         }
+        create("localTest") {
+            // 실제 기기에서 로컬 PC 서버 접근 (같은 Wi-Fi 대역)
+            initWith(getByName("debug"))
+            buildConfigField("String", "BASE_URL", "\"http://192.168.0.7:10204/rest/api/v1/android-app/\"")
+        }
         release {
             buildConfigField("String", "BASE_URL", "\"https://seochobus.seocho.go.kr/rest/api/v1/android-app/\"")
             isMinifyEnabled = true

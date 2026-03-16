@@ -142,6 +142,49 @@ fun MainScreen(
         onDispose { connectivityManager.unregisterNetworkCallback(callback) }
     }
 
+    // --- "다른 앱 위에 표시" 권한 (부팅 자동시작에 필요) ---
+    var hasOverlayPermission by remember {
+        mutableStateOf(Settings.canDrawOverlays(context))
+    }
+    var showOverlayDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        if (!hasOverlayPermission) {
+            showOverlayDialog = true
+        }
+    }
+
+    if (showOverlayDialog && !hasOverlayPermission) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = {
+                Text(
+                    text = "권한 설정 필요",
+                    fontWeight = FontWeight.Bold,
+                )
+            },
+            text = {
+                Text(
+                    text = "부팅 시 앱 자동 시작을 위해\n\"다른 앱 위에 표시\" 권한이 필요합니다.\n\n설정 화면에서 허용해주세요.",
+                    fontSize = 16.sp,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showOverlayDialog = false
+                    context.startActivity(
+                        Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:${context.packageName}"),
+                        ),
+                    )
+                }) {
+                    Text("설정으로 이동")
+                }
+            },
+        )
+    }
+
     // --- 위치 권한 상태 ---
     var hasLocationPermission by remember {
         mutableStateOf(checkLocationPermission(context))
@@ -153,6 +196,7 @@ fun MainScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 hasLocationPermission = checkLocationPermission(context)
+                hasOverlayPermission = Settings.canDrawOverlays(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -600,13 +644,18 @@ fun MainScreen(
             }
         }
 
-        // 차량에 이미 할당된 노선이 있으면 자동 선택
+        // 차량에 이미 할당된 노선이 있으면 자동 선택 + 운행 상태 복원
         LaunchedEffect(vehState) {
             if (vehState is VehUiState.Success) {
-                val route = (vehState as VehUiState.Success).vehInfo.route
+                val vehInfo = (vehState as VehUiState.Success).vehInfo
+                val route = vehInfo.route
                 if (route != null && route.routeName != null && route.entityId != null) {
                     selectedRoute = route.routeName
                     selectedRouteEid = route.entityId
+                }
+                // 서버 Redis에 운행중("Y")이면 앱 운행 상태 복원
+                if (vehInfo.androidVehDriving == "Y") {
+                    isOperating = true
                 }
             }
         }
